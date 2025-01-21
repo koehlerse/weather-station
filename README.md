@@ -5,15 +5,15 @@
 The project includes a weather station that sends sensor data to a Raspberry Pi via Wi-Fi. The project features step-by-step instructions, the complete source code, and files for the 3D printer housing.
 
 
-### Hardware components
+## Hardware components
 
-#### Outside
+### Outside
 - ESP32 NodeMCU Module WLAN WiFi Development Board
 - DHT22 AM2302 
 - AMS1117
 - PCB Board Set
 
-#### Inside
+### Inside
 - ESP32 NodeMCU Module WLAN WiFi Development Board
 - DHT22 AM2302
 - AMS1117
