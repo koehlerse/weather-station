@@ -10,13 +10,15 @@ The project includes a weather station that sends sensor data to a Raspberry Pi 
 ### Outside
 - ESP32 NodeMCU Module WLAN WiFi Development Board
 - DHT22 AM2302 
-- AMS1117
+- 2S-8A-Li-ion BMS
+- MP2315
 - PCB Board Set
 
 ### Inside
 - ESP32 NodeMCU Module WLAN WiFi Development Board
 - DHT22 AM2302
-- AMS1117
+- 2S-8A-Li-ion BMS
+- MP2315
 - MQ-135 Gas Sensor 
 - KY-006
 - PCB Board Set
