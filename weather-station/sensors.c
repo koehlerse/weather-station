@@ -25,7 +25,7 @@ void sensors_init(void) {
     gpio_pull_up(I2C_SDA);
     gpio_pull_up(I2C_SCL);
 
-    sleep_ms(1000);
+    bi_decl(bi_2pins_with_func(I2C_SDA, I2C_SCL, GPIO_FUNC_I2C));
 
     bme_cfg = (bme280_config_t) {
         .i2c = I2C_PORT,
@@ -45,6 +45,7 @@ void sensors_init(void) {
     }
 
     bh1750_write(BH1750_POWER_ON);
+    sleep_ms(200);
     bh1750_write(BH1750_CONTINUOUS_HIGH_RES_MODE);
     printf("BH1750 initialized\n");
 

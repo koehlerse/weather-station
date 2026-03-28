@@ -1,10 +1,8 @@
 #include <stdio.h>
-#include <string.h>
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 #include "pico/unique_id.h"
 #include "wifi.h"
-#include "mq135.h"
 #include "mqtt_client.h"
 #include "sensors.h"
 #include "hardware.h"
@@ -20,19 +18,28 @@
 #define MQTT_WILL_TOPIC "weather/data"
 #define MQTT_WILL_MSG "offline"
 #define MQTT_WILL_QOS 1
-#define MQTT_DEVICE_NAME "pico"
+#define MQTT_DEVICE_DESCRIPTION "inside"
+#define MQTT_DEVICE_NAME "weather-station"
 
-#define LED_PIN 15
-#define BUZZER_BIN
+#define MOSTFET_PIN 12
+#define ON_DURATION_MS 1000
+#define SENSOR_WARMUP_MS (60 * 1000)
+
+// Messintervall (z. B. 30 Minuten)
+#define LOOP_DELAY_MS (30 * 60 * 1000)
 
 int main()
 {
     stdio_init_all();
 
+    gpio_init(MOSTFET_PIN);
+    gpio_set_dir(MOSTFET_PIN, true);
+
+    hardware_init();
+
     static MQTT_CLIENT_DATA_T state;
 
-
-    char unique_id_buf[5];
+    char unique_id_buf[9];
     pico_get_unique_board_id_string(unique_id_buf, sizeof(unique_id_buf));
     for (int i = 0; i < sizeof(unique_id_buf) - 1; i++) {
         unique_id_buf[i] = tolower(unique_id_buf[i]);
@@ -42,19 +49,21 @@ int main()
     snprintf(client_id_buf, sizeof(client_id_buf), "%s%s", MQTT_DEVICE_NAME, unique_id_buf);
 
     static char will_topic[MQTT_TOPIC_LEN];
-    sniprintf(will_topic, sizeof(will_topic), "%s", MQTT_WILL_TOPIC);
-
-    sensors_init();
-    hardware_init();
-    printf("Waiting 5 mins for MQ135\n");
-    sleep_ms(5 * 60 * 1000); // 5min
-
+    snprintf(will_topic, sizeof(will_topic), "%s", MQTT_WILL_TOPIC);
 
     while (true) {
 
-        SensorData data = sensors_read();
-        AirQualityLevel level = (AirQualityLevel)data.air_quality;
+        gpio_put(MOSTFET_PIN, 1);
+        sleep_ms(ON_DURATION_MS);
 
+        sensors_init();
+        printf("Waiting %d ms for sensor warmup...\n", SENSOR_WARMUP_MS);
+        sleep_ms(SENSOR_WARMUP_MS);
+
+        SensorData data = sensors_read();
+        gpio_put(MOSTFET_PIN, 0);
+
+        AirQualityLevel level = (AirQualityLevel)data.air_quality;
         hardware_update_air_quality(level);
 
         if (level != AIR_GOOD) {
@@ -67,7 +76,16 @@ int main()
             continue;
         }
 
-        mqtt_init_client(&state, client_id_buf, BROKER_USER, BROKER_PASSWORD, will_topic, MQTT_WILL_MSG, MQTT_WILL_QOS, true);
+        mqtt_init_client(
+            &state,
+            client_id_buf,
+            BROKER_USER,
+            BROKER_PASSWORD,
+            will_topic,
+            MQTT_WILL_MSG,
+            MQTT_WILL_QOS,
+            true
+        );
 
         mqtt_start_client(&state, BROKER_IP, BROKER_PORT);
 
@@ -77,16 +95,18 @@ int main()
         }
 
         char payload[256];
-        snprintf(payload, sizeof(payload), 
+        snprintf(payload, sizeof(payload),
             "{\"device_id\":\"%s\","
+            "\"device_description\":\"%s\","
             "\"temperature\":%.2f,"
             "\"humidity\":%.2f,"
             "\"pressure\":%.2f,"
             "\"lux\":%.2f,"
             "\"air_quality\":%.2f}",
-            client_id_buf, 
+            client_id_buf,
+            MQTT_DEVICE_DESCRIPTION,
             data.temperature,
-            data.humidity, 
+            data.humidity,
             data.pressure,
             data.lux,
             data.air_quality
@@ -94,18 +114,12 @@ int main()
 
         printf("Publishing: %s\n", payload);
         mqtt_publish_message(&state, will_topic, payload, MQTT_WILL_QOS, false);
+
         sleep_ms(2000);
-
         mqtt_disconnect_client(&state);
-
         cyw43_arch_disable_sta_mode();
 
-        if (level != AIR_GOOD) {
-            panic("Bad air quality, sleeping 1 min...\n");
-            sleep_ms(1 * 60 * 1000); // 1min
-        } else {
-            printf("Sleeping for 30min...\n");
-            sleep_ms(30 * 60 * 1000); // 30min
-        }
+        printf("Cycle done, waiting...\n");
+        sleep_ms(LOOP_DELAY_MS);
     }
 }
